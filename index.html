@@ -725,6 +725,21 @@ async function initSync() {
     if (d) { state = JSON.parse(d); renderAll(); }
   } catch(e) {}
   await loadRemote();
+
+  // Auto-limpiar partidos de Group stage que vengan de la nube
+  const FASES_VALIDAS = ['Round of 16','Quarterfinals','Semifinals','Third place','Final'];
+  const antes = state.partidos.length;
+  state.partidos = state.partidos.filter(p => FASES_VALIDAS.includes(p.fase));
+  // También limpiar resultados y pronósticos huérfanos
+  const idsValidos = new Set(state.partidos.map(p => p.id));
+  Object.keys(state.resultados).forEach(id => { if (!idsValidos.has(id)) delete state.resultados[id]; });
+  Object.keys(state.pronosticos).forEach(id => { if (!idsValidos.has(id)) delete state.pronosticos[id]; });
+  if (state.partidos.length !== antes) {
+    console.log(`Mundial26: eliminados ${antes - state.partidos.length} partidos de fase de grupos`);
+    await save();
+  }
+
+  renderAll();
   setInterval(loadRemote, 8000); // polling cada 8 s
 }
 
