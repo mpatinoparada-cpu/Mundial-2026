@@ -989,59 +989,92 @@ function editarResultado(id) {
 function renderPartidos() {
   const el = document.getElementById('lista-partidos');
   if (!state.partidos.length) {
-    el.innerHTML = '<div class="empty"><i class="ti ti-ball-football"></i>No matches yet. Add the first one!</div>';
+    el.innerHTML = '<div class="empty"><i class="ti ti-ball-football"></i>No hay partidos aún. ¡Agrega el primero!</div>';
     return;
   }
 
-  const filaPartido = (p, pillHtml) => {
-    const r = state.resultados[p.id];
-    const done = r !== undefined;
-    const autoTag = (done && r.auto) ? `<span style="font-size:10px;color:var(--text3);margin-left:6px;border:1px solid var(--border);border-radius:10px;padding:1px 6px;">auto</span>` : '';
-    const resultHtml = done
-      ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span class="result-final"><i class="ti ti-check" style="font-size:13px;"></i> ${flagFor(p.equipo1,'flag-sm')} ${h(p.equipo1)} ${r.goles1} — ${r.goles2} ${h(p.equipo2)} ${flagFor(p.equipo2,'flag-sm')}</span>${autoTag}
-          <button class="btn-danger" onclick="editarResultado('${p.id}')" style="font-size:11px;padding:4px 9px;">edit</button>
-         </div>`
-      : `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">
-          <span style="font-size:12px;color:var(--text3);">Final score:</span>
-          <input type="number" id="rg1-${p.id}" min="0" max="99" placeholder="${h(p.equipo1.slice(0,3))}" />
-          <span style="color:var(--text3);font-size:13px;">—</span>
-          <input type="number" id="rg2-${p.id}" min="0" max="99" placeholder="${h(p.equipo2.slice(0,3))}" />
-          <button class="btn-success" onclick="guardarResultado('${p.id}')"><i class="ti ti-check"></i> Save</button>
-         </div>`;
-    return `
+  // Tarjeta completa para partidos PENDIENTES (sin resultado)
+  const cardPendiente = (p) => {
+    const pill = `<span class="phase-pill" style="display:inline-block;margin-bottom:4px;">${h(p.fase)}</span>`;
+    return `<div class="match-card">
       <div class="match-top">
         <div>
-          ${pillHtml || ''}
+          ${pill}
           ${p.fecha ? `<span class="match-date" style="display:inline-block;margin-bottom:4px;">${h(p.fecha)}</span>` : ''}
           <div class="match-teams">${flagFor(p.equipo1,'flag-sm')} ${h(p.equipo1)}<span class="vs">vs</span>${flagFor(p.equipo2,'flag-sm')} ${h(p.equipo2)}</div>
         </div>
         <button class="btn-danger" onclick="eliminarPartido('${p.id}')" style="font-size:11px;padding:4px 9px;"><i class="ti ti-trash"></i></button>
       </div>
-      ${resultHtml}`;
-  };
-
-  const { porGrupo, sinGrupo } = agruparPorLetra(state.partidos);
-
-  let html = '';
-  Object.keys(GRUPOS).forEach(letra => {
-    const partidos = porGrupo[letra];
-    if (!partidos || !partidos.length) return;
-    html += `<div class="group-matches-card">
-      <div class="group-matches-head" style="background:${GROUP_COLORS[letra]}">
-        <span class="group-letter-big">${letra}</span>
-        <span class="group-name-color">Group ${letra}</span>
-      </div>
-      <div class="group-matches-body">
-        ${partidos.map(p => `<div class="group-match-row">${filaPartido(p)}</div>`).join('')}
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;">
+        <span style="font-size:12px;color:var(--text3);">Resultado final:</span>
+        <input type="number" id="rg1-${p.id}" min="0" max="99" placeholder="${h(p.equipo1.slice(0,3))}" />
+        <span style="color:var(--text3);font-size:13px;">—</span>
+        <input type="number" id="rg2-${p.id}" min="0" max="99" placeholder="${h(p.equipo2.slice(0,3))}" />
+        <button class="btn-success" onclick="guardarResultado('${p.id}')"><i class="ti ti-check"></i> Guardar</button>
       </div>
     </div>`;
-  });
+  };
 
-  if (sinGrupo.length) {
-    html += sinGrupo.map(p => `<div class="match-card">${filaPartido(p, `<span class="phase-pill" style="display:inline-block;margin-bottom:4px;">${h(p.fase)}</span>`)}</div>`).join('');
+  // Mini tarjeta para partidos JUGADOS (con resultado)
+  const cardJugado = (p) => {
+    const r = state.resultados[p.id];
+    const autoTag = r.auto ? `<span style="font-size:9px;color:var(--text3);border:1px solid var(--border);border-radius:8px;padding:1px 4px;">auto</span>` : '';
+    const winner = r.goles1 > r.goles2 ? p.equipo1 : r.goles2 > r.goles1 ? p.equipo2 : null;
+    return `<div style="
+        background:var(--surface);border:1px solid var(--border);border-radius:8px;
+        padding:7px 10px;display:flex;flex-direction:column;gap:3px;
+        opacity:0.85;position:relative;
+      ">
+      <span style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em;">${h(p.fase)}</span>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;">
+        ${flagFor(p.equipo1,'flag-badge')}
+        <span style="${winner===p.equipo1?'color:var(--green);font-weight:700;':''}">${h(p.equipo1)}</span>
+      </div>
+      <div style="font-size:13px;font-weight:700;color:var(--text);letter-spacing:.04em;padding:1px 0;">
+        ${r.goles1} — ${r.goles2} ${autoTag}
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;font-size:11px;font-weight:500;">
+        ${flagFor(p.equipo2,'flag-badge')}
+        <span style="${winner===p.equipo2?'color:var(--green);font-weight:700;':''}">${h(p.equipo2)}</span>
+      </div>
+      <button onclick="editarResultado('${p.id}')" title="Editar resultado"
+        style="position:absolute;top:5px;right:5px;background:transparent;border:none;
+               color:var(--text3);font-size:11px;cursor:pointer;padding:2px 4px;">✏️</button>
+    </div>`;
+  };
+
+  const jugados   = state.partidos.filter(p => state.resultados[p.id] !== undefined);
+  const pendientes = state.partidos.filter(p => state.resultados[p.id] === undefined);
+
+  let html = `<div style="display:flex;gap:16px;align-items:flex-start;">`;
+
+  // ── Columna izquierda: jugados (pequeños) ──
+  if (jugados.length) {
+    html += `<div style="flex:0 0 200px;min-width:160px;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);
+                  font-weight:600;margin-bottom:8px;padding-left:2px;">
+        ✅ Jugados (${jugados.length})
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        ${jugados.map(p => cardJugado(p)).join('')}
+      </div>
+    </div>`;
   }
 
+  // ── Columna derecha: pendientes (normales) ──
+  if (pendientes.length) {
+    html += `<div style="flex:1;min-width:0;">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);
+                  font-weight:600;margin-bottom:8px;padding-left:2px;">
+        🕐 Pendientes (${pendientes.length})
+      </div>
+      ${pendientes.map(p => cardPendiente(p)).join('')}
+    </div>`;
+  } else {
+    html += `<div style="flex:1;"><div class="empty"><i class="ti ti-check"></i>¡Todos los partidos tienen resultado!</div></div>`;
+  }
+
+  html += `</div>`;
   el.innerHTML = html;
 }
 
