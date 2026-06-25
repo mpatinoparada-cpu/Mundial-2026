@@ -628,8 +628,6 @@ button.btn-success:hover { background: rgba(63,185,80,.2); }
 
 </div>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 let state = { jugadores: [], partidos: [], pronosticos: {}, resultados: {} };
 
@@ -648,22 +646,19 @@ const GRUPOS = {
   L: [['England','gb-eng'],['Croatia','hr'],['Ghana','gh'],['Panama','pa']]
 };
 
-/* ── Cloud sync (Firebase Realtime Database) ──
-   Todos los que abran este archivo leen y escriben el mismo "documento" en la nube,
-   así que cualquier cambio que haga una persona aparece solo en la pantalla de las demás. */
-const firebaseConfig = {
-  apiKey: "AIzaSyC2IDX1astURXVOjIg8xT4qPhMF1DPyZrY",
-  authDomain: "world-cup-be648.firebaseapp.com",
-  databaseURL: "https://world-cup-be648-default-rtdb.firebaseio.com",
-  projectId: "world-cup-be648",
-  storageBucket: "world-cup-be648.firebasestorage.app",
-  messagingSenderId: "904533987995",
-  appId: "1:904533987995:web:f0807bd4fb520015c22c3e"
-};
-firebase.initializeApp(firebaseConfig);
-const stateRef = firebase.database().ref('mundial26_state');
+/* ── Sincronización via JSONBin.io (gratis) ──
+   Todos los que abran esta página comparten los mismos datos.
+   Los cambios de cualquier persona aparecen en 8 segundos. */
 
-let suppressSave = false; // true mientras aplicamos datos que ya llegaron de la nube (evita reescribirlos)
+// ► BIN_ID y BIN_KEY vienen del archivo .env o se configuran aquí directamente.
+//   Ve a https://jsonbin.io → crea cuenta → Create Bin ({}) → copia el ID de la URL.
+//   Luego en tu perfil copia la "Master Key" y ponla en BIN_KEY.
+const BIN_ID  = '6a3d7d26da38895dfeff16dd';
+const BIN_KEY = '$2a$10$NGnWXchAFRwIw0PC9Q.SLOF3LSZzav8Va24ZMLGttZX.k0bBV6Ovy';
+const BIN_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+let _lastHash = '';
+let _saving   = false;
 
 function setSyncStatus(status, msg) {
   const el = document.getElementById('sync-status');
@@ -680,58 +675,56 @@ function renderAll() {
   if (document.getElementById('tab-marcador').classList.contains('active')) renderMarcador();
 }
 
-// Escucha permanente: se dispara con los datos actuales al conectar, y de nuevo
-// cada vez que CUALQUIER persona (tú u otro familiar) guarda un cambio.
-stateRef.on('value', snap => {
-  const remote = snap.val();
-  suppressSave = true;
-  state = remote || { jugadores: [], partidos: [], pronosticos: {}, resultados: {} };
-  try { localStorage.setItem('mundial26_v2', JSON.stringify(state)); } catch(e) {}
-  renderAll();
-  suppressSave = false;
-  setSyncStatus('ok', 'Synced');
-}, err => {
-  console.error('Mundial26 - cloud sync error:', err);
-  // Si la nube falla, seguimos funcionando con la última copia local conocida
-  try { const d = localStorage.getItem('mundial26_v2'); if (d) { state = JSON.parse(d); renderAll(); } } catch(e) {}
-  setSyncStatus('error', 'Offline (local copy)');
-});
-
-function save() {
-  if (suppressSave) return;
-  try { localStorage.setItem('mundial26_v2', JSON.stringify(state)); } catch(e) {}
-  setSyncStatus('loading', 'Saving...');
-  stateRef.set(state)
-    .then(() => setSyncStatus('ok', 'Synced ✓'))
-    .catch(e => {
-      console.error('Mundial26 - save error:', e);
-      if (e.code === 'PERMISSION_DENIED') {
-        setSyncStatus('error', 'Permission denied — see instructions below');
-        showFirebaseHelp();
-      } else {
-        setSyncStatus('error', 'Could not save: ' + e.message);
-      }
+async function loadRemote() {
+  try {
+    const r = await fetch(BIN_URL + '/latest', {
+      headers: { 'X-Master-Key': BIN_KEY, 'X-Bin-Meta': 'false' }
     });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const remote = await r.json();
+    const h = JSON.stringify(remote);
+    if (h !== _lastHash) {
+      state = { jugadores:[], partidos:[], pronosticos:{}, resultados:{}, ...remote };
+      _lastHash = h;
+      try { localStorage.setItem('mundial26_v2', JSON.stringify(state)); } catch(e) {}
+      renderAll();
+    }
+    setSyncStatus('ok', 'Sincronizado ✓');
+  } catch(e) {
+    console.warn('Mundial26 load:', e.message);
+    setSyncStatus('error', 'Sin conexión – modo local');
+  }
 }
 
-function showFirebaseHelp() {
-  if (document.getElementById('firebase-help-banner')) return;
-  const banner = document.createElement('div');
-  banner.id = 'firebase-help-banner';
-  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;color:#eaf5ee;padding:16px 20px;z-index:9999;font-size:13px;border-top:2px solid var(--red);line-height:1.7;';
-  banner.innerHTML = `
-    <strong style="color:var(--gold);font-size:15px;">⚠️ Firebase: Permission Denied</strong>
-    <button onclick="this.parentElement.remove()" style="float:right;background:transparent;border:none;color:#eaf5ee;font-size:18px;cursor:pointer;">✕</button>
-    <p style="margin:6px 0 4px;">To allow everyone to read and write, go to your <strong>Firebase Console</strong> and set these rules:</p>
-    <pre style="background:#0d0d1a;padding:10px;border-radius:6px;overflow-x:auto;color:var(--green);">{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}</pre>
-    <p style="margin:4px 0 0;">📍 <strong>Firebase Console →</strong> Realtime Database → Rules → paste the above → Publish</p>
-  `;
-  document.body.appendChild(banner);
+async function save() {
+  if (_saving) return;
+  _saving = true;
+  const snap = JSON.parse(JSON.stringify(state));
+  try { localStorage.setItem('mundial26_v2', JSON.stringify(snap)); } catch(e) {}
+  setSyncStatus('loading', 'Guardando...');
+  try {
+    const r = await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Master-Key': BIN_KEY },
+      body: JSON.stringify(snap)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _lastHash = JSON.stringify(snap);
+    setSyncStatus('ok', 'Sincronizado ✓');
+  } catch(e) {
+    console.error('Mundial26 save:', e.message);
+    setSyncStatus('error', 'Error al guardar: ' + e.message);
+  } finally { _saving = false; }
+}
+
+async function initSync() {
+  // Mostrar datos locales mientras llega la nube
+  try {
+    const d = localStorage.getItem('mundial26_v2');
+    if (d) { state = JSON.parse(d); renderAll(); }
+  } catch(e) {}
+  await loadRemote();
+  setInterval(loadRemote, 8000); // polling cada 8 s
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
@@ -1470,15 +1463,15 @@ function toggleLive() {
 }
 
 /* ── Init ── */
-renderJugadores();
-renderPartidos();
-
 document.getElementById('nuevo-jugador').addEventListener('keydown', e => { if(e.key==='Enter') agregarJugador(); });
 document.getElementById('equipo1').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('equipo2').focus(); });
 document.getElementById('equipo2').addEventListener('keydown', e => { if(e.key==='Enter') agregarPartido(); });
 
-// Auto-start live updates
-setTimeout(() => { liveActive=false; toggleLive(); }, 1500);
+// Arrancar sincronización (carga datos + polling cada 8s)
+initSync();
+
+// Auto-start live score updates
+setTimeout(() => { if(typeof liveActive!=='undefined'){ liveActive=false; toggleLive(); } }, 3000);
 </script>
 </body>
 </html>
