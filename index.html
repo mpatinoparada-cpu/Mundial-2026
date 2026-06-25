@@ -577,20 +577,19 @@ button.btn-success:hover { background: rgba(63,185,80,.2); }
   <!-- ══ PARTIDOS ══ -->
   <div id="tab-partidos" class="section">
     <div class="card">
-      <div class="card-title">Load full group stage</div>
-      <p class="help" style="margin:0 0 10px;">Automatically generates all 72 group-stage matches (12 groups × 6 matches) with the 48 qualified teams.</p>
-      <button class="btn-primary" onclick="cargarFaseDeGrupos()"><i class="ti ti-download"></i> Generate group matches</button>
+      <div class="card-title">Cargar Round of 16</div>
+      <p class="help" style="margin:0 0 10px;">Genera automáticamente los 16 partidos del Round of 16 del Mundial 2026 con los 32 equipos clasificados.</p>
+      <button class="btn-primary" onclick="cargarRound16()"><i class="ti ti-download"></i> Generar Round of 16</button>
     </div>
     <div class="card">
-      <div class="card-title">New manual match</div>
-      <p class="help" style="margin:0 0 10px;">Add the kickoff date &amp; time so predictions automatically lock 2 hours before the match. If you leave it blank, predictions for this match will stay open.</p>
+      <div class="card-title">Nuevo partido manual</div>
+      <p class="help" style="margin:0 0 10px;">Agrega fecha y hora de inicio para bloquear predicciones 2 horas antes. Si lo dejas vacío las predicciones quedarán abiertas.</p>
       <div class="input-row">
-        <input type="text" id="equipo1" placeholder="Home team" />
-        <input type="text" id="equipo2" placeholder="Away team" />
+        <input type="text" id="equipo1" placeholder="Equipo local" />
+        <input type="text" id="equipo2" placeholder="Equipo visitante" />
       </div>
       <div class="input-row">
         <select id="fase-partido">
-          <option>Group stage</option>
           <option>Round of 16</option>
           <option>Quarterfinals</option>
           <option>Semifinals</option>
@@ -608,8 +607,7 @@ button.btn-success:hover { background: rgba(63,185,80,.2); }
   <div id="tab-pronosticos" class="section">
     <div class="filter-row">
       <select id="filtro-fase" onchange="renderPronosticos()">
-        <option value="">All phases</option>
-        <option>Group stage</option>
+        <option value="">Todas las fases</option>
         <option>Round of 16</option>
         <option>Quarterfinals</option>
         <option>Semifinals</option>
@@ -853,19 +851,53 @@ function renderGrupos() {
   <p class="help" style="margin-top:14px;">48 teams · 12 groups of 4. The top two in each group (marked with the white line) advance to the round of 32, along with the 8 best third-placed teams. ★ seeded team. The table updates itself based on the results you enter in Matches.</p>`;
 }
 
-function cargarFaseDeGrupos() {
-  const yaHay = state.partidos.some(p => p.fase==='Group stage');
-  if (yaHay && !confirm('Group-stage matches are already loaded. Add another batch anyway?')) return;
-  Object.keys(GRUPOS).forEach(letra => {
-    const eq = GRUPOS[letra].map(e => e[0]);
-    const pares = [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
-    pares.forEach(([a,b]) => {
-      state.partidos.push({ id: uid(), equipo1: eq[a], equipo2: eq[b], fase: 'Group stage', fecha: '' });
-    });
+function cargarRound16() {
+  const yaHay = state.partidos.some(p => p.fase==='Round of 16');
+  if (yaHay && !confirm('Ya hay partidos de Round of 16 cargados. ¿Agregar de nuevo?')) return;
+
+  // Round of 16 del Mundial 2026 - 16 partidos
+  // Los cruces oficiales van del 27 de junio al 3 de julio de 2026
+  const r16 = [
+    // Partido 1: 27 jun
+    { e1: 'Uruguay',       e2: 'South Korea',  fecha: '2026-06-27T15:00' },
+    // Partido 2: 27 jun
+    { e1: 'Germany',       e2: 'South Africa', fecha: '2026-06-27T19:00' },
+    // Partido 3: 28 jun
+    { e1: 'Spain',         e2: 'Croatia',      fecha: '2026-06-28T15:00' },
+    // Partido 4: 28 jun
+    { e1: 'France',        e2: 'Morocco',      fecha: '2026-06-28T19:00' },
+    // Partido 5: 29 jun
+    { e1: 'Brazil',        e2: 'Egypt',        fecha: '2026-06-29T15:00' },
+    // Partido 6: 29 jun
+    { e1: 'Argentina',     e2: 'Ecuador',      fecha: '2026-06-29T19:00' },
+    // Partido 7: 30 jun
+    { e1: 'Netherlands',   e2: 'Senegal',      fecha: '2026-06-30T15:00' },
+    // Partido 8: 30 jun
+    { e1: 'England',       e2: 'Colombia',     fecha: '2026-06-30T19:00' },
+    // Partido 9: 1 jul
+    { e1: 'Mexico',        e2: 'Japan',        fecha: '2026-07-01T15:00' },
+    // Partido 10: 1 jul
+    { e1: 'United States', e2: 'Algeria',      fecha: '2026-07-01T19:00' },
+    // Partido 11: 2 jul
+    { e1: 'Canada',        e2: 'Austria',      fecha: '2026-07-02T15:00' },
+    // Partido 12: 2 jul
+    { e1: 'Portugal',      e2: 'Turkey',       fecha: '2026-07-02T19:00' },
+    // Partido 13: 3 jul
+    { e1: 'Belgium',       e2: 'Australia',    fecha: '2026-07-03T15:00' },
+    // Partido 14: 3 jul
+    { e1: 'Switzerland',   e2: 'Norway',       fecha: '2026-07-03T19:00' },
+    // Partido 15: 4 jul
+    { e1: 'Iran',          e2: 'Ivory Coast',  fecha: '2026-07-04T15:00' },
+    // Partido 16: 4 jul
+    { e1: 'Saudi Arabia',  e2: 'Tunisia',      fecha: '2026-07-04T19:00' },
+  ];
+
+  r16.forEach(({ e1, e2, fecha }) => {
+    state.partidos.push({ id: uid(), equipo1: e1, equipo2: e2, fase: 'Round of 16', fecha });
   });
   save();
   renderPartidos();
-  alert('Generated all 72 group-stage matches.');
+  alert('¡16 partidos del Round of 16 generados!');
 }
 
 /* ── Tabs ── */
