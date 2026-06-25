@@ -698,12 +698,40 @@ stateRef.on('value', snap => {
 });
 
 function save() {
-  if (suppressSave) return; // este cambio ya vino de la nube, no hace falta reescribirlo
+  if (suppressSave) return;
   try { localStorage.setItem('mundial26_v2', JSON.stringify(state)); } catch(e) {}
   setSyncStatus('loading', 'Saving...');
   stateRef.set(state)
-    .then(() => setSyncStatus('ok', 'Synced'))
-    .catch(e => { console.error('Mundial26 - save error:', e); setSyncStatus('error', 'Could not save'); });
+    .then(() => setSyncStatus('ok', 'Synced ✓'))
+    .catch(e => {
+      console.error('Mundial26 - save error:', e);
+      if (e.code === 'PERMISSION_DENIED') {
+        setSyncStatus('error', 'Permission denied — see instructions below');
+        showFirebaseHelp();
+      } else {
+        setSyncStatus('error', 'Could not save: ' + e.message);
+      }
+    });
+}
+
+function showFirebaseHelp() {
+  if (document.getElementById('firebase-help-banner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'firebase-help-banner';
+  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#1a1a2e;color:#eaf5ee;padding:16px 20px;z-index:9999;font-size:13px;border-top:2px solid var(--red);line-height:1.7;';
+  banner.innerHTML = `
+    <strong style="color:var(--gold);font-size:15px;">⚠️ Firebase: Permission Denied</strong>
+    <button onclick="this.parentElement.remove()" style="float:right;background:transparent;border:none;color:#eaf5ee;font-size:18px;cursor:pointer;">✕</button>
+    <p style="margin:6px 0 4px;">To allow everyone to read and write, go to your <strong>Firebase Console</strong> and set these rules:</p>
+    <pre style="background:#0d0d1a;padding:10px;border-radius:6px;overflow-x:auto;color:var(--green);">{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}</pre>
+    <p style="margin:4px 0 0;">📍 <strong>Firebase Console →</strong> Realtime Database → Rules → paste the above → Publish</p>
+  `;
+  document.body.appendChild(banner);
 }
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
