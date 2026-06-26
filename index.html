@@ -726,16 +726,28 @@ async function initSync() {
   } catch(e) {}
   await loadRemote();
 
-  // Auto-limpiar partidos de Group stage que vengan de la nube
+  // Auto-limpiar partidos de Group stage y eliminar duplicados
   const FASES_VALIDAS = ['Round of 16','Quarterfinals','Semifinals','Third place','Final'];
   const antes = state.partidos.length;
   state.partidos = state.partidos.filter(p => FASES_VALIDAS.includes(p.fase));
-  // También limpiar resultados y pronósticos huérfanos
+
+  // Eliminar duplicados (mismo equipo1+equipo2+fase)
+  const vistos = new Set();
+  state.partidos = state.partidos.filter(p => {
+    const key = [p.fase, p.equipo1, p.equipo2].join('|');
+    const keyRev = [p.fase, p.equipo2, p.equipo1].join('|');
+    if (vistos.has(key) || vistos.has(keyRev)) return false;
+    vistos.add(key);
+    return true;
+  });
+
+  // Limpiar resultados y pronósticos huérfanos
   const idsValidos = new Set(state.partidos.map(p => p.id));
   Object.keys(state.resultados).forEach(id => { if (!idsValidos.has(id)) delete state.resultados[id]; });
   Object.keys(state.pronosticos).forEach(id => { if (!idsValidos.has(id)) delete state.pronosticos[id]; });
+
   if (state.partidos.length !== antes) {
-    console.log(`Mundial26: eliminados ${antes - state.partidos.length} partidos de fase de grupos`);
+    console.log(`Mundial26: limpiados ${antes - state.partidos.length} partidos (group stage o duplicados)`);
     await save();
   }
 
@@ -871,7 +883,9 @@ function renderGrupos() {
 
 function cargarRound16() {
   const yaHay = state.partidos.some(p => p.fase==='Round of 16');
-  if (yaHay && !confirm('Ya hay partidos de Round of 16 cargados. ¿Agregar de nuevo?')) return;
+  if (yaHay && !confirm('Ya hay partidos de Round of 16 cargados. ¿Reemplazarlos?')) return;
+  // Borrar los existentes antes de cargar para evitar duplicados
+  state.partidos = state.partidos.filter(p => p.fase !== 'Round of 16');
 
   // Round of 16 del Mundial 2026 - 16 partidos
   // Los cruces oficiales van del 27 de junio al 3 de julio de 2026
